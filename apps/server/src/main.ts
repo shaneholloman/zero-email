@@ -20,6 +20,7 @@ import { oAuthDiscoveryMetadata } from 'better-auth/plugins';
 import { getZeroDB, verifyToken } from './lib/server-utils';
 import { eq, and, desc, asc, inArray } from 'drizzle-orm';
 import { EWorkflowType, runWorkflow } from './pipelines';
+import { ThinkingMCP } from './lib/sequential-thinking';
 import { ZeroAgent, ZeroDriver } from './routes/agent';
 import { contextStorage } from 'hono/context-storage';
 import { defaultUserSettings } from './lib/schemas';
@@ -39,6 +40,7 @@ import { Autumn } from 'autumn-js';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Effect } from 'effect';
+
 import { Hono } from 'hono';
 
 const SENTRY_HOST = 'o4509328786915328.ingest.us.sentry.io';
@@ -611,6 +613,17 @@ export default class extends WorkerEntrypoint<typeof env> {
       { replaceRequest: false },
     )
     .mount(
+      '/mcp/thinking/sse',
+      async (request, env, ctx) => {
+        return ThinkingMCP.serveSSE('/mcp/thinking/sse', { binding: 'THINKING_MCP' }).fetch(
+          request,
+          env,
+          ctx,
+        );
+      },
+      { replaceRequest: false },
+    )
+    .mount(
       '/mcp',
       async (request, env, ctx) => {
         const authBearer = request.headers.get('Authorization');
@@ -841,4 +854,4 @@ export default class extends WorkerEntrypoint<typeof env> {
   }
 }
 
-export { ZeroAgent, ZeroMCP, ZeroDB, ZeroDriver };
+export { ZeroAgent, ZeroMCP, ZeroDB, ZeroDriver, ThinkingMCP };
