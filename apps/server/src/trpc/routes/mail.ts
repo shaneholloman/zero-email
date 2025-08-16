@@ -5,12 +5,13 @@ import {
 } from '../../lib/driver/types';
 import { updateWritingStyleMatrix } from '../../services/writing-style-service';
 import { activeDriverProcedure, router, privateProcedure } from '../trpc';
+import { getZeroAgent, getZeroClient } from '../../lib/server-utils';
 import { processEmailHtml } from '../../lib/email-processor';
 import { defaultPageSize, FOLDERS } from '../../lib/utils';
 import { serializedFileSchema } from '../../lib/schemas';
 import type { DeleteAllSpamResponse } from '../../types';
-import { getZeroAgent } from '../../lib/server-utils';
-
+import { getContext } from 'hono/context-storage';
+import { type HonoContext } from '../../ctx';
 import { env } from 'cloudflare:workers';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -20,17 +21,14 @@ const senderSchema = z.object({
   email: z.string(),
 });
 
-const FOLDER_TO_LABEL_MAP: Record<string, string> = {
-  inbox: 'INBOX',
-  sent: 'SENT',
-  draft: 'DRAFT',
-  spam: 'SPAM',
-  trash: 'TRASH',
-};
+// const getFolderLabelId = (folder: string) => {
+//   // Handle special cases first
+//   if (folder === 'bin') return 'TRASH';
+//   if (folder === 'archive') return ''; // Archive doesn't have a specific label
 
-const getFolderLabelId = (folder: string) => {
-  return FOLDER_TO_LABEL_MAP[folder];
-};
+//   // For other folders, convert to uppercase (same as database method)
+//   return folder.toUpperCase();
+// };
 
 export const mailRouter = router({
   get: activeDriverProcedure
@@ -42,8 +40,9 @@ export const mailRouter = router({
     .output(IGetThreadResponseSchema)
     .query(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
-      return await agent.getThread(input.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
+      return await agent.getThread(input.id, true);
     }),
   count: activeDriverProcedure
     .output(
@@ -92,28 +91,25 @@ export const mailRouter = router({
 
       let threadsResponse: IGetThreadsResponse;
 
+      // Apply folder-to-label mapping when no search query is provided
+      const effectiveLabelIds = labelIds;
+
       if (q) {
-        console.debug('[listThreads] Performing search with query:', q);
         threadsResponse = await agent.rawListThreads({
-          folder,
           query: q,
           maxResults,
-          labelIds,
+          labelIds: effectiveLabelIds,
           pageToken: cursor,
+          folder,
         });
-        console.debug('[listThreads] Search result:', threadsResponse);
       } else {
-        const folderLabelId = getFolderLabelId(folder);
-        const labelIdsToUse = folderLabelId ? [...labelIds, folderLabelId] : labelIds;
-        console.debug('[listThreads] Listing with labelIds:', labelIdsToUse, 'for folder:', folder);
-
         threadsResponse = await agent.listThreads({
           folder,
-          labelIds: labelIdsToUse,
+          // query: q,
           maxResults,
+          labelIds: effectiveLabelIds,
           pageToken: cursor,
         });
-        console.debug('[listThreads] List result:', threadsResponse);
       }
 
       if (folder === FOLDERS.SNOOZED) {
@@ -228,7 +224,8 @@ export const mailRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
       const { threadIds } = await agent.normalizeIds(input.ids);
 
       if (!threadIds.length) {
@@ -272,7 +269,8 @@ export const mailRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
       const { threadIds } = await agent.normalizeIds(input.ids);
 
       if (!threadIds.length) {

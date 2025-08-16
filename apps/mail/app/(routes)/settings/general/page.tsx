@@ -38,6 +38,7 @@ import { m } from '@/paraglide/messages';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import * as z from 'zod';
+import { useCallback } from 'react';
 
 const TimezoneSelect = memo(
   ({ field }: { field: ControllerRenderProps<z.infer<typeof userSettingsSchema>, 'timezone'> }) => {
@@ -61,9 +62,9 @@ const TimezoneSelect = memo(
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="flex !h-9 w-full items-center justify-start rounded-md hover:bg-transparent"
+              className="flex h-9! w-full items-center justify-start rounded-md hover:bg-transparent"
             >
-              <Clock className="mr-2 h-4 w-4 flex-shrink-0" />
+              <Clock className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">{field.value}</span>
             </Button>
           </FormControl>
@@ -134,6 +135,7 @@ export default function GeneralPage() {
       customPrompt: '',
       zeroSignature: true,
       defaultEmailAlias: '',
+      animations: false,
     },
   });
 
@@ -177,6 +179,20 @@ export default function GeneralPage() {
       setIsSaving(false);
     }
   }
+
+  const renderAnimationsField = useCallback(({ field }: { field: any }) => (
+    <FormItem className="flex max-w-xl flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+      <div className="space-y-0.5">
+        <FormLabel>{m['pages.settings.general.animations']()}</FormLabel>
+        <FormDescription>
+          {m['pages.settings.general.animationsDescription']()}
+        </FormDescription>
+      </div>
+      <FormControl>
+        <Switch checked={field.value} onCheckedChange={field.onChange} />
+      </FormControl>
+    </FormItem>
+  ), []);
 
   return (
     <div className="grid gap-6">
@@ -232,7 +248,7 @@ export default function GeneralPage() {
                   name="defaultEmailAlias"
                   render={({ field }) => (
                     <FormItem className="w-full md:w-[280px]">
-                      <FormLabel className="!mb-1 flex flex-row items-center gap-1 text-sm font-medium">
+                      <FormLabel className="mb-1! flex flex-row items-center gap-1 text-sm font-medium">
                         {m['pages.settings.general.defaultEmailAlias']()}{' '}
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -306,6 +322,11 @@ export default function GeneralPage() {
                   </FormControl>
                 </FormItem>
               )}
+            />
+            <FormField
+              control={form.control}
+              name="animations"
+              render={renderAnimationsField}
             />
           </form>
         </Form>
